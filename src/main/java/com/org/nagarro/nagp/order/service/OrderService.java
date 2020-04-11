@@ -16,6 +16,8 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import com.org.nagarro.nagp.common.entity.Order;
 
+import io.opentracing.Span;
+import io.opentracing.Tracer;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
@@ -26,22 +28,29 @@ public class OrderService {
 	private String orderServiceUrl;
 
 	@Autowired
+	Tracer tracer;
+
+	@Autowired
 	RestTemplate restTemplate;
 
-	public List<Order> getOrderDetailsByUserId(String userId) {
+	public List<Order> getOrdersByUserId(String userId, Span rootSpan) {
 		List<Order> response = null;
 		UriComponentsBuilder uriComponentsBuilder = UriComponentsBuilder
 				.fromUriString(orderServiceUrl + "/orders/" + userId);
+		Span span = tracer.buildSpan("Order Service : Get Orders by user id").asChildOf(rootSpan).start();
 
 		ResponseEntity<List<Order>> responseEntity = restTemplate.exchange(uriComponentsBuilder.toUriString(),
 				HttpMethod.GET, new HttpEntity<>(new HttpHeaders()), new ParameterizedTypeReference<List<Order>>() {
 				});
 		if (responseEntity.getStatusCode() == HttpStatus.OK) {
+			span.setTag("http.status_code", 200);
 			log.info("Request for response to order-service is successful.");
 			response = responseEntity.getBody();
 		} else {
+			span.setTag("http.status_code", 500);
 			log.error("There was a problem with requesting response from order-service.");
 		}
+		span.finish();
 		return response;
 	}
 }
